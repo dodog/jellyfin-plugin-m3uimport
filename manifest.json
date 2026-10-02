@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/dodog/jellyfin-plugin-m3uimport/main/docs/icon.svg",
     "versions": [
       {
+        "version": "1.3.0.0",
+        "changelog": "Fix mapping field",
+        "targetAbi": "12.1.0.0",
+        "sourceUrl": "https://github.com/dodog/jellyfin-plugin-m3uimport/releases/download/v1.3.0.0/m3uimport_1.3.0.0.zip",
+        "checksum": "9B3DA76A339468EEA329083D2E658C02",
+        "timestamp": "2026-10-02T18:23:35Z"
+      },
+      {
         "version": "1.2.0.0",
         "changelog": "Existing playlist handling, remembered settings, icon",
         "targetAbi": "12.1.0.0",
