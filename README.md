@@ -1,2 +1,46 @@
-# jellyfin-plugin-m3uimport
-Import m3u playlists to Jellyfin
+# Jellyfin M3U Playlist Import
+
+Import `.m3u` / `.m3u8` playlists into Jellyfin as audio playlists. Two ways to use it:
+
+- **Plugin** (easiest): upload the m3u file in the Jellyfin dashboard.
+- **Script** (`m3u_to_jellyfin.py`): command line, needs only Python 3 and an API key.
+
+Tested with **Jellyfin 12.1**.
+
+## Install the plugin from the repository
+
+1. In Jellyfin: **Dashboard -> Plugins -> Repositories -> Add**
+2. Name: `M3U Playlist Import`, URL:
+
+       https://raw.githubusercontent.com/dodog/jellyfin-plugin-m3uimport/main/manifest.json
+
+3. Open the **Plugins** catalogue tab, find **M3U Playlist Import**, install it, and restart Jellyfin.
+4. Open **M3U Import** in the Dashboard side menu, choose your file, name the playlist, and import.
+
+
+## How tracks are matched
+
+1. The line is decoded (`file://` URLs, `%20` escapes), slashes are normalized, and optional path
+   mappings are applied.
+2. Exact match against the library paths (case-insensitive).
+3. Same file name with the folder/file tail agreeing (e.g. `Artist/Album/Track.mp3`). Ambiguous
+   matches are reported as not found rather than guessed.
+4. Optional: the file name occurs exactly once in the whole library.
+
+Lines that are not found are listed with a hint showing where the library has a file with the same
+name. Path mappings (`old prefix => new prefix`) are only needed when none of the above works.
+
+## 2nd option: Using the Python Script
+
+    python3 m3u_to_jellyfin.py --url http://localhost:8096 --api-key KEY --m3u list.m3u --name "My list" --dry-run
+
+Create the API key in Dashboard -> API Keys. Remove `--dry-run` to create the playlist. Options:
+`--map "old=>new"` (repeatable), `--keep-duplicates`, `--no-name-only`, `--user NAME`.
+
+## Build from source
+
+Needs the .NET 10 SDK.
+
+    cd Jellyfin.Plugin.M3UImport
+    dotnet publish -c Release -o out
+
