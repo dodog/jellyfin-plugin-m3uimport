@@ -62,7 +62,13 @@
         var file = $('#m3uFile').files[0];
         var name = $('#m3uName').value.trim();
         if (!file || !name) { Dashboard.alert('Choose a file and enter a playlist name.'); return; }
+        var btn = $('#m3uImport');
+        btn.disabled = true;
         var reader = new FileReader();
+        reader.onerror = function () {
+          btn.disabled = false;
+          Dashboard.alert('Could not read the file.');
+        };
         reader.onload = function () {
           var mappings = $('#m3uMappings').value;
           var dedupe = $('#m3uDedupe').checked;
@@ -85,6 +91,7 @@
             });
           }).then(function (r) {
             Dashboard.hideLoadingMsg();
+            btn.disabled = false;
             var text =
               'Audio tracks in Jellyfin: ' + r.LibraryTracks +
               '\nLines in file: ' + r.TotalLines +
@@ -99,9 +106,14 @@
                 '\n' + r.Missing.join('\n');
             }
             if (!r.PlaylistId) { text += '\n\nNo playlist created (no tracks matched).'; }
+            if (reader.result.indexOf('\uFFFD') >= 0) {
+              text += '\n\nWarning: the file is not valid UTF-8, so names with accents or special ' +
+                'characters may not match. Re-save the m3u as UTF-8 and import again.';
+            }
             $('#m3uResult').textContent = text;
           }).catch(function (e) {
             Dashboard.hideLoadingMsg();
+            btn.disabled = false;
             Dashboard.alert('Import failed: ' + (e && e.statusText ? e.statusText : e));
           });
         };
