@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><title>M3U Import</title></head>
+<body>
+<div id="M3UImportPage" data-role="page" class="page type-interior pluginConfigurationPage"
+     data-require="emby-input,emby-button,emby-textarea,emby-checkbox">
+  <div data-role="content">
+    <div class="content-primary">
+      <h2>Import M3U playlist</h2>
+      <div class="inputContainer">
+        <input is="emby-input" id="m3uName" type="text" label="Playlist name" />
+      </div>
+      <div class="inputContainer">
+        <label>M3U file<br /><input id="m3uFile" type="file" accept=".m3u,.m3u8,text/plain" /></label>
+      </div>
+      <div class="inputContainer">
+        <textarea is="emby-textarea" id="m3uMappings" rows="4" label="Path mappings (optional, one per line: m3u prefix =&gt; Jellyfin prefix)"></textarea>
+        <div class="fieldDescription">
+          Usually not needed: tracks are matched case-insensitively and, if the full path differs,
+          by their folder and file name (e.g. Artist/Album/Track.mp3). Use a mapping only if
+          tracks are reported as not found. Example:
+          /run/media/me/music/ =&gt; /mnt/music/. file:// URLs, %20 escapes, relative paths and
+          Windows paths are handled automatically.
+        </div>
+      </div>
+      <div class="checkboxContainer checkboxContainer-withDescription">
+        <label>
+          <input is="emby-checkbox" id="m3uDedupe" type="checkbox" checked />
+          <span>Skip duplicate tracks</span>
+        </label>
+      </div>
+      <div class="checkboxContainer checkboxContainer-withDescription">
+        <label>
+          <input is="emby-checkbox" id="m3uNameOnly" type="checkbox" checked />
+          <span>Also match by file name alone (only if the name is unique in the library)</span>
+        </label>
+        <div class="fieldDescription checkboxFieldDescription">
+          Helps when tracks were moved to different folders. Turn off if you get wrong matches.
+        </div>
+      </div>
+      <button is="emby-button" id="m3uImport" type="button" class="raised button-submit block">
+        <span>Import</span>
+      </button>
+      <pre id="m3uResult" style="white-space:pre-wrap;margin-top:1em;"></pre>
+    </div>
+  </div>
+  <script type="text/javascript">
+    (function () {
+      var pluginId = '5b8d1c9e-3f4a-4c7b-9a21-6d0e8f2a7c14';
+      var page = document.querySelector('#M3UImportPage');
+      var $ = function (id) { return page.querySelector(id); };
+
+      page.addEventListener('pageshow', function () {
+        Dashboard.showLoadingMsg();
+        ApiClient.getPluginConfiguration(pluginId).then(function (c) {
+          $('#m3uMappings').value = c.PrefixMappings || '';
+          Dashboard.hideLoadingMsg();
+        });
+      });
+
+      $('#m3uImport').addEventListener('click', function () {
+        var file = $('#m3uFile').files[0];
+        var name = $('#m3uName').value.trim();
+        if (!file || !name) { Dashboard.alert('Choose a file and enter a playlist name.'); return; }
+        var reader = new FileReader();
+        reader.onload = function () {
+          var mappings = $('#m3uMappings').value;
+          var dedupe = $('#m3uDedupe').checked;
+          var nameOnly = $('#m3uNameOnly').checked;
+          Dashboard.showLoadingMsg();
+          ApiClient.getPluginConfiguration(pluginId).then(function (c) {
+            c.PrefixMappings = mappings;
+            return ApiClient.updatePluginConfiguration(pluginId, c);
+          }).then(function () {
+            return ApiClient.ajax({
+              type: 'POST',
+              url: ApiClient.getUrl('M3UImport/Import'),
+              contentType: 'application/json',
+              dataType: 'json',
+              data: JSON.stringify({
+                Name: name, Content: reader.result,
+                UserId: ApiClient.getCurrentUserId(), Mappings: mappings,
+                Deduplicate: dedupe, AllowNameOnly: nameOnly
+              })
+            });
+          }).then(function (r) {
+            Dashboard.hideLoadingMsg();
+            var text =
+              'Audio tracks in Jellyfin: ' + r.LibraryTracks +
+              '\nLines in file: ' + r.TotalLines +
+              '\nMatched: ' + r.Matched +
+              ' (' + r.TailMatched + ' by folder/file name, ' + r.NameOnlyMatched + ' by file name only)' +
+              '\nDuplicates skipped: ' + r.Duplicates +
+              '\nTracks in playlist: ' + r.TracksAdded +
+              '\nNot found: ' + r.MissingCount;
+            if (r.Missing.length) {
+              text += (r.MissingCount > r.Missing.length
+                ? '\n(showing first ' + r.Missing.length + ')' : '') +
+                '\n' + r.Missing.join('\n');
+            }
+            if (!r.PlaylistId) { text += '\n\nNo playlist created (no tracks matched).'; }
+            $('#m3uResult').textContent = text;
+          }).catch(function (e) {
+            Dashboard.hideLoadingMsg();
+            Dashboard.alert('Import failed: ' + (e && e.statusText ? e.statusText : e));
+          });
+        };
+        reader.readAsText(file);
+      });
+    })();
+  </script>
+</div>
+</body>
+</html>
