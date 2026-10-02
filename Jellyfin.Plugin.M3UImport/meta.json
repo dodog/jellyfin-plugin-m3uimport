@@ -1,0 +1,16 @@
+{
+  "guid": "5b8d1c9e-3f4a-4c7b-9a21-6d0e8f2a7c14",
+  "name": "M3U Playlist Import",
+  "description": "Import .m3u playlists into Jellyfin with automatic path matching.",
+  "overview": "Upload an M3U file and create an audio playlist. Tracks are matched by path, with a folder/file name fallback and optional path mappings.",
+  "owner": "dodog",
+  "category": "General",
+  "version": "1.1.0.0",
+  "targetAbi": "12.1.0.0",
+  "timestamp": "2026-10-02T00:00:31Z",
+  "status": "Active",
+  "autoUpdate": false,
+  "assemblies": [
+    "Jellyfin.Plugin.M3UImport.dll"
+  ]
+}
