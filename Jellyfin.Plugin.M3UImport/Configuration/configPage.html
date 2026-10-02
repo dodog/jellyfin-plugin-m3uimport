@@ -3,7 +3,7 @@
 <head><meta charset="utf-8"><title>M3U Import</title></head>
 <body>
 <div id="M3UImportPage" data-role="page" class="page type-interior pluginConfigurationPage"
-     data-require="emby-input,emby-button,emby-textarea,emby-checkbox,emby-select">
+     data-require="emby-input,emby-button,emby-checkbox,emby-select">
   <div data-role="content">
     <div class="content-primary">
       <h2>Import M3U playlist</h2>
@@ -23,16 +23,23 @@
         </select>
         <div class="fieldDescription">Only playlists you own are considered. This choice is not remembered.</div>
       </div>
-      <div class="inputContainer">
-        <textarea is="emby-textarea" id="m3uMappings" rows="4" label="Path mappings (optional, one per line: m3u prefix =&gt; Jellyfin prefix)"></textarea>
-        <div class="fieldDescription">
-          Usually not needed: tracks are matched case-insensitively and, if the full path differs,
-          by their folder and file name (e.g. Artist/Album/Track.mp3). Use a mapping only if
-          tracks are reported as not found. Example:
-          /run/media/me/music/ =&gt; /mnt/music/. file:// URLs, %20 escapes, relative paths and
-          Windows paths are handled automatically.
+      <details id="m3uAdvanced" style="margin:1em 0;">
+        <summary style="cursor:pointer;">Advanced: path mappings (optional)</summary>
+        <div style="margin-top:.8em;">
+          <div class="fieldDescription" style="margin-bottom:.6em;">
+            Usually not needed: tracks are matched case-insensitively and, if the full path differs,
+            by their folder and file name (e.g. Artist/Album/Track.mp3). Use a mapping only if
+            tracks are reported as not found. One mapping per line, in the form
+            <code>m3u path prefix =&gt; Jellyfin path prefix</code>, for example
+            <code>/run/media/me/music/ =&gt; /mnt/music/</code>.
+            file:// URLs, %20 escapes, relative paths and Windows paths are handled automatically.
+          </div>
+          <textarea id="m3uMappings" rows="4" spellcheck="false"
+                    style="width:100%;box-sizing:border-box;background:transparent;color:inherit;
+                           border:1px solid rgba(128,128,128,.5);border-radius:.3em;padding:.6em;
+                           font-family:monospace;font-size:inherit;"></textarea>
         </div>
-      </div>
+      </details>
       <div class="checkboxContainer checkboxContainer-withDescription">
         <label>
           <input is="emby-checkbox" id="m3uDedupe" type="checkbox" checked />
@@ -65,6 +72,7 @@
         Dashboard.showLoadingMsg();
         ApiClient.getPluginConfiguration(pluginId).then(function (c) {
           $('#m3uMappings').value = c.PrefixMappings || '';
+          $('#m3uAdvanced').open = !!(c.PrefixMappings && c.PrefixMappings.trim());
           $('#m3uDedupe').checked = c.Deduplicate !== false;
           $('#m3uNameOnly').checked = c.AllowNameOnly !== false;
           $('#m3uExisting').value = 'stop';
