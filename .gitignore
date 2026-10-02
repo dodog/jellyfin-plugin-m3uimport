@@ -1,0 +1,6 @@
+bin/
+obj/
+out/
+dist/
+__pycache__/
+missing_tracks.txt
