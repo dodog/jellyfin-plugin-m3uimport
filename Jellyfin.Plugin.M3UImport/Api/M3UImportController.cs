@@ -24,6 +24,12 @@ public class ImportRequest
 
     /// <summary>Accept a track when its file name occurs exactly once in the whole library.</summary>
     public bool AllowNameOnly { get; set; } = true;
+
+    /// <summary>
+    /// What to do if the user already owns a playlist with this name:
+    /// "stop" (default, change nothing and report it), "append", "replace" or "new" (create another).
+    /// </summary>
+    public string ExistingAction { get; set; } = "stop";
 }
 
 public class ImportResult
@@ -56,6 +62,15 @@ public class ImportResult
     public List<string> Missing { get; set; } = new();
 
     public string? PlaylistId { get; set; }
+
+    /// <summary>The user already has a playlist with the requested name.</summary>
+    public bool ExistingFound { get; set; }
+
+    /// <summary>Number of items in that existing playlist.</summary>
+    public int ExistingTracks { get; set; }
+
+    /// <summary>What was done: "none", "created", "appended" or "replaced".</summary>
+    public string Action { get; set; } = "none";
 }
 
 [ApiController]
@@ -133,21 +148,74 @@ public class M3UImportController : ControllerBase
         }
 
         result.TracksAdded = ids.Count;
+
+        var name = req.Name.Trim();
+        var action = (req.ExistingAction ?? "stop").Trim().ToLowerInvariant();
+        if (action is not ("append" or "replace" or "new"))
+        {
+            action = "stop";
+        }
+
+        var existing = FindExisting(name, req.UserId);
+        if (existing is not null)
+        {
+            result.ExistingFound = true;
+            result.ExistingTracks = existing.LinkedChildren.Count();
+            if (action == "stop")
+            {
+                result.TracksAdded = 0;
+                return Ok(result);
+            }
+        }
+
         if (ids.Count == 0)
         {
             return Ok(result);
         }
 
+        if (existing is not null && action == "append")
+        {
+            var have = existing.LinkedChildren.Select(c => (Guid?)c.ItemId).ToHashSet();
+            var toAdd = req.Deduplicate ? ids.Where(i => !have.Contains(i)).ToList() : ids;
+            result.Duplicates += ids.Count - toAdd.Count;
+            result.TracksAdded = toAdd.Count;
+            if (toAdd.Count > 0)
+            {
+                await _playlists.AddItemToPlaylistAsync(existing.Id, toAdd, null, req.UserId).ConfigureAwait(false);
+            }
+
+            result.PlaylistId = existing.Id.ToString("N");
+            result.Action = "appended";
+            return Ok(result);
+        }
+
+        // Create first, delete the old one afterwards, so a failure never loses the existing playlist.
         var created = await _playlists.CreatePlaylist(new PlaylistCreationRequest
         {
-            Name = req.Name,
+            Name = name,
             ItemIdList = ids,
             UserId = req.UserId,
             MediaType = MediaType.Audio
         }).ConfigureAwait(false);
 
         result.PlaylistId = created.Id;
+        result.Action = "created";
+
+        if (existing is not null && action == "replace")
+        {
+            _library.DeleteItem(existing, new DeleteOptions { DeleteFileLocation = true });
+            result.Action = "replaced";
+        }
+
         return Ok(result);
+    }
+
+    /// <summary>The playlist this user owns with the given name (case-insensitive), if any.</summary>
+    private Playlist? FindExisting(string name, Guid userId)
+    {
+        return _playlists.GetPlaylists(userId)
+            .FirstOrDefault(p => p.OwnerUserId == userId
+                && string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase));
     }
 
     // ---------------------------------------------------------------- matching
