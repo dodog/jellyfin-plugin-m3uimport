@@ -1,5 +1,6 @@
 using System.Net.Mime;
 using System.Text;
+using System.Text.Json;
 using Jellyfin.Data.Enums;
 using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Library;
@@ -58,8 +59,8 @@ public class ImportResult
     /// <summary>Total number of lines that could not be matched.</summary>
     public int MissingCount { get; set; }
 
-    /// <summary>The first unmatched lines (original text), with a hint, capped.</summary>
-    public List<string> Missing { get; set; } = new();
+    /// <summary>The first unmatched lines (original text) with a hint, capped.</summary>
+    public List<MissingItem> Missing { get; set; } = new();
 
     public string? PlaylistId { get; set; }
 
@@ -71,6 +72,27 @@ public class ImportResult
 
     /// <summary>What was done: "none", "created", "appended" or "replaced".</summary>
     public string Action { get; set; } = "none";
+}
+
+/// <summary>A line that could not be matched, plus a hint (data only; the page words it).</summary>
+public class MissingItem
+{
+    /// <summary>The original line from the m3u file.</summary>
+    public string Line { get; set; } = string.Empty;
+
+    /// <summary>Path of a library file with the same file name, if there is one.</summary>
+    public string? LibraryPath { get; set; }
+
+    /// <summary>How many further library files have that file name.</summary>
+    public int MoreCount { get; set; }
+}
+
+/// <summary>UI strings for the page: the chosen language with English filling any gaps.</summary>
+public class StringsResult
+{
+    public string Language { get; set; } = "en";
+
+    public Dictionary<string, string> Strings { get; set; } = new();
 }
 
 [ApiController]
@@ -216,6 +238,68 @@ public class M3UImportController : ControllerBase
         return _playlists.GetPlaylists(userId)
             .FirstOrDefault(p => p.OwnerUserId == userId
                 && string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase));
+    }
+
+    // ------------------------------------------------------------ translations
+
+    /// <summary>
+    /// Returns the UI strings for the first available language</summary>
+    [HttpGet("Strings")]
+    public ActionResult<StringsResult> GetStrings([FromQuery] string? lang)
+    {
+        var strings = ReadLanguage("en") ?? new Dictionary<string, string>();
+        var chosen = "en";
+
+        var candidates = (lang ?? string.Empty)
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        foreach (var candidate in candidates)
+        {
+            var code = candidate.Split('-', '_')[0].ToLowerInvariant();
+            if (code == "en")
+            {
+                break;
+            }
+
+            var translated = ReadLanguage(code);
+            if (translated is not null)
+            {
+                foreach (var (key, value) in translated)
+                {
+                    strings[key] = value;
+                }
+
+                chosen = code;
+                break;
+            }
+        }
+
+        return Ok(new StringsResult { Language = chosen, Strings = strings });
+    }
+
+    /// <summary>Reads Configuration/lang/&lt;code&gt;.json from the embedded resources, or null.</summary>
+    private static Dictionary<string, string>? ReadLanguage(string code)
+    {
+        if (code.Length is < 2 or > 3 || !code.All(char.IsAsciiLetterLower))
+        {
+            return null;
+        }
+
+        var assembly = typeof(M3UImportController).Assembly;
+        using var stream = assembly.GetManifestResourceStream(
+            $"{assembly.GetName().Name}.Configuration.lang.{code}.json");
+        if (stream is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            return JsonSerializer.Deserialize<Dictionary<string, string>>(stream);
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
     }
 
     // ---------------------------------------------------------------- matching
@@ -447,19 +531,18 @@ public class M3UImportController : ControllerBase
     }
 
     /// <summary>Adds a hint to an unmatched line: where the library has a file with the same name.</summary>
-    private static string Annotate(string line, List<(string From, string To)> maps, LibraryIndex index)
+    private static MissingItem Annotate(string line, List<(string From, string To)> maps, LibraryIndex index)
     {
         foreach (var variant in Variants(line))
         {
             var segs = Segments(ApplyMappings(variant, maps));
             if (segs.Length > 0 && index.ByFileName.TryGetValue(segs[^1], out var c))
             {
-                var more = c.Count > 1 ? $" (+{c.Count - 1} more)" : string.Empty;
-                return $"{line}\n      -> same file name in library: {c[0].Path}{more}";
+                return new MissingItem { Line = line, LibraryPath = c[0].Path, MoreCount = c.Count - 1 };
             }
         }
 
-        return line + "\n      -> file name not found in library";
+        return new MissingItem { Line = line };
     }
 
     private static int CommonSuffix(string[] a, string[] b)
