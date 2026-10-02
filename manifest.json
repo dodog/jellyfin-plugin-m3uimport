@@ -6,6 +6,7 @@
     "overview": "Upload an M3U file and create an audio playlist. Tracks are matched by path, with a folder/file name fallback and optional path mappings.",
     "owner": "dodog",
     "category": "General",
+    "imageUrl": "https://raw.githubusercontent.com/dodog/jellyfin-plugin-m3uimport/main/docs/icon.svg",
     "versions": [
       {
         "version": "1.1.0.0",
