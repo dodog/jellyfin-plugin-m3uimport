@@ -19,6 +19,7 @@ import json
 import re
 import sys
 import unicodedata
+import urllib.error
 import urllib.parse
 import urllib.request
 
@@ -121,12 +122,17 @@ def variants(line):
 
 
 def read_m3u(path):
+    try:
+        with open(path, encoding="utf-8-sig") as f:
+            lines = f.read().splitlines()
+    except UnicodeDecodeError:
+        sys.exit(f"{path} is not valid UTF-8. Convert it first, e.g.: "
+                 f"iconv -f cp1250 -t utf-8 old.m3u > new.m3u (use the encoding it was saved in)")
     out = []
-    with open(path, encoding="utf-8-sig") as f:
-        for line in f:
-            line = line.strip()
-            if line and not line.startswith("#"):
-                out.append(line)
+    for line in lines:
+        line = line.strip()
+        if line and not line.startswith("#"):
+            out.append(line)
     return out
 
 
@@ -268,4 +274,10 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except urllib.error.HTTPError as e:
+        body = e.read().decode(errors="replace")[:300]
+        sys.exit(f"Jellyfin returned HTTP {e.code} {e.reason} for {e.url}\n{body}")
+    except urllib.error.URLError as e:
+        sys.exit(f"Cannot reach Jellyfin: {e.reason}")
