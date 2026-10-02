@@ -3,15 +3,25 @@
 <head><meta charset="utf-8"><title>M3U Import</title></head>
 <body>
 <div id="M3UImportPage" data-role="page" class="page type-interior pluginConfigurationPage"
-     data-require="emby-input,emby-button,emby-textarea,emby-checkbox">
+     data-require="emby-input,emby-button,emby-textarea,emby-checkbox,emby-select">
   <div data-role="content">
     <div class="content-primary">
       <h2>Import M3U playlist</h2>
       <div class="inputContainer">
-        <input is="emby-input" id="m3uName" type="text" label="Playlist name" />
+        <label>M3U file<br /><input id="m3uFile" type="file" accept=".m3u,.m3u8,text/plain" /></label>
       </div>
       <div class="inputContainer">
-        <label>M3U file<br /><input id="m3uFile" type="file" accept=".m3u,.m3u8,text/plain" /></label>
+        <input is="emby-input" id="m3uName" type="text" label="Playlist name" />
+        <div class="fieldDescription">Filled in from the file name; change it if you like.</div>
+      </div>
+      <div class="selectContainer">
+        <select is="emby-select" id="m3uExisting" label="If a playlist with this name already exists">
+          <option value="stop" selected>Stop and warn me</option>
+          <option value="append">Add the tracks to the existing playlist</option>
+          <option value="replace">Replace the existing playlist</option>
+          <option value="new">Create another playlist with the same name</option>
+        </select>
+        <div class="fieldDescription">Only playlists you own are considered. This choice is not remembered.</div>
       </div>
       <div class="inputContainer">
         <textarea is="emby-textarea" id="m3uMappings" rows="4" label="Path mappings (optional, one per line: m3u prefix =&gt; Jellyfin prefix)"></textarea>
@@ -49,13 +59,29 @@
       var pluginId = '5b8d1c9e-3f4a-4c7b-9a21-6d0e8f2a7c14';
       var page = document.querySelector('#M3UImportPage');
       var $ = function (id) { return page.querySelector(id); };
+      var autoName = '';   // the last name we filled in ourselves
 
       page.addEventListener('pageshow', function () {
         Dashboard.showLoadingMsg();
         ApiClient.getPluginConfiguration(pluginId).then(function (c) {
           $('#m3uMappings').value = c.PrefixMappings || '';
+          $('#m3uDedupe').checked = c.Deduplicate !== false;
+          $('#m3uNameOnly').checked = c.AllowNameOnly !== false;
+          $('#m3uExisting').value = 'stop';
           Dashboard.hideLoadingMsg();
         });
+      });
+
+      // Pre-fill the playlist name from the file name, unless the user typed their own.
+      $('#m3uFile').addEventListener('change', function () {
+        var f = this.files[0];
+        if (!f) { return; }
+        var base = f.name.replace(/\.(m3u8?|txt)$/i, '');
+        var current = $('#m3uName').value.trim();
+        if (!current || current === autoName) {
+          $('#m3uName').value = base;
+          autoName = base;
+        }
       });
 
       $('#m3uImport').addEventListener('click', function () {
@@ -73,9 +99,12 @@
           var mappings = $('#m3uMappings').value;
           var dedupe = $('#m3uDedupe').checked;
           var nameOnly = $('#m3uNameOnly').checked;
+          var existing = $('#m3uExisting').value;
           Dashboard.showLoadingMsg();
           ApiClient.getPluginConfiguration(pluginId).then(function (c) {
             c.PrefixMappings = mappings;
+            c.Deduplicate = dedupe;
+            c.AllowNameOnly = nameOnly;
             return ApiClient.updatePluginConfiguration(pluginId, c);
           }).then(function () {
             return ApiClient.ajax({
@@ -86,31 +115,54 @@
               data: JSON.stringify({
                 Name: name, Content: reader.result,
                 UserId: ApiClient.getCurrentUserId(), Mappings: mappings,
-                Deduplicate: dedupe, AllowNameOnly: nameOnly
+                Deduplicate: dedupe, AllowNameOnly: nameOnly,
+                ExistingAction: existing
               })
             });
           }).then(function (r) {
             Dashboard.hideLoadingMsg();
             btn.disabled = false;
-            var text =
+
+            var text = '';
+            if (r.ExistingFound && r.Action === 'none') {
+              text += 'A playlist named "' + name + '" already exists (' + r.ExistingTracks +
+                ' tracks). Nothing was changed.\n' +
+                'Choose what to do in "If a playlist with this name already exists" ' +
+                'and click Import again.\n\n';
+            }
+            text +=
               'Audio tracks in Jellyfin: ' + r.LibraryTracks +
               '\nLines in file: ' + r.TotalLines +
               '\nMatched: ' + r.Matched +
               ' (' + r.TailMatched + ' by folder/file name, ' + r.NameOnlyMatched + ' by file name only)' +
               '\nDuplicates skipped: ' + r.Duplicates +
-              '\nTracks in playlist: ' + r.TracksAdded +
               '\nNot found: ' + r.MissingCount;
+
+            var result = '';
+            if (r.Action === 'created') {
+              result = 'Playlist created with ' + r.TracksAdded + ' tracks.';
+            } else if (r.Action === 'appended') {
+              result = 'Added ' + r.TracksAdded + ' tracks to the existing playlist.';
+            } else if (r.Action === 'replaced') {
+              result = 'Existing playlist replaced by a new one with ' + r.TracksAdded + ' tracks.';
+            } else if (!r.ExistingFound) {
+              result = 'No playlist created (no tracks matched).';
+            }
+            if (result) { text += '\n\n' + result; }
+
             if (r.Missing.length) {
-              text += (r.MissingCount > r.Missing.length
-                ? '\n(showing first ' + r.Missing.length + ')' : '') +
+              text += '\n\n' + (r.MissingCount > r.Missing.length
+                ? 'Not found (showing first ' + r.Missing.length + '):' : 'Not found:') +
                 '\n' + r.Missing.join('\n');
             }
-            if (!r.PlaylistId) { text += '\n\nNo playlist created (no tracks matched).'; }
             if (reader.result.indexOf('\uFFFD') >= 0) {
               text += '\n\nWarning: the file is not valid UTF-8, so names with accents or special ' +
                 'characters may not match. Re-save the m3u as UTF-8 and import again.';
             }
             $('#m3uResult').textContent = text;
+
+            // Never leave "replace"/"append" armed for the next import.
+            if (r.Action !== 'none') { $('#m3uExisting').value = 'stop'; }
           }).catch(function (e) {
             Dashboard.hideLoadingMsg();
             btn.disabled = false;
