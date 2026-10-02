@@ -1,11 +1,6 @@
-
-
-
 # Jellyfin M3U Playlist Import
 <img width="64" height="64" src="docs/m3uplaylist-logo.svg" alt="M3U Playlist Import icon" align="left" />
-Import `.m3u` / `.m3u8` playlists into Jellyfin as audio playlists. 
-
-
+Import .m3u /.m3u8 playlists into Jellyfin as audio playlists. 
 
 Tested with **Jellyfin 12.1**.
 
@@ -15,7 +10,7 @@ Tested with **Jellyfin 12.1**.
 |---|---|
 | ![Import plugin](docs/m3u-import-screenshot-plugin.jpg) | ![Import page](docs/m3u-import-screenshot.jpg) |
 
-## Features
+## 🚀 Features
 
 - Matches tracks even when the music is mounted at a different path than where the m3u was made
 - Handles `file://` URLs, `%20` escapes, relative paths, Windows paths and accents
@@ -30,7 +25,7 @@ Tested with **Jellyfin 12.1**.
 - **Plugin** (easiest): upload the m3u file in the Jellyfin dashboard.
 - **Script** (`m3u_to_jellyfin.py`): command line, needs only Python 3 and an API key.
   
-## Install the plugin from the repository
+## 🛠️ Install the plugin from the repository
 
 1. In Jellyfin: **Dashboard -> Plugins -> Repositories -> Add**
 2. Name: `M3U Playlist Import`, URL:
@@ -67,7 +62,7 @@ Needs the .NET 10 SDK.
 Lines that are not found are listed with a hint showing where the library has a file with the same
 name. Path mappings (`old prefix => new prefix`) are only needed when none of the above works.
 
-## How to translate
+## 🌍 How to translate
 
 Translations are plain JSON files in `Jellyfin.Plugin.M3UImport/Configuration/lang/`, one per
 language, named with the two-letter code (`en.json`, `sk.json`, ...).
@@ -77,3 +72,6 @@ language, named with the two-letter code (`en.json`, `sk.json`, ...).
 2. Create PR with your language.
 
 
+## ❤️ Support
+Do you find this m3u importer useful? 
+You can buy me a [coffee ☕](https://ko-fi.com/dodog)
