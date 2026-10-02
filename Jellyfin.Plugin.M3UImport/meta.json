@@ -5,9 +5,9 @@
   "overview": "Upload an M3U file and create an audio playlist. Tracks are matched by path, with a folder/file name fallback and optional path mappings.",
   "owner": "dodog",
   "category": "General",
-  "version": "1.2.0.0",
+  "version": "1.3.0.0",
   "targetAbi": "12.1.0.0",
-  "timestamp": "2026-10-02T18:06:49Z",
+  "timestamp": "2026-10-02T18:23:35Z",
   "status": "Active",
   "autoUpdate": false,
   "assemblies": [
