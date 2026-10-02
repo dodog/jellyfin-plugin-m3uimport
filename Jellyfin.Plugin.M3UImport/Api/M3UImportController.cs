@@ -216,7 +216,17 @@ public class M3UImportController : ControllerBase
     /// </summary>
     private static string[] Segments(string path)
     {
-        var p = path.Replace('\\', '/').Normalize(NormalizationForm.FormC).ToLowerInvariant();
+        var p = path.Replace('\\', '/');
+        try
+        {
+            p = p.Normalize(NormalizationForm.FormC);
+        }
+        catch (ArgumentException)
+        {
+            // malformed unicode in the path: use it as is
+        }
+
+        p = p.ToLowerInvariant();
         var segs = p.Split('/', StringSplitOptions.RemoveEmptyEntries)
             .Where(s => s != "." && s != "..")
             .ToList();
